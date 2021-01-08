@@ -1,7 +1,10 @@
+package sample;
+
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.SimpleDoubleProperty;
+import javafx.embed.swing.SwingFXUtils;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
@@ -9,17 +12,25 @@ import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.WritableImage;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.text.Font;
+import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import org.jfree.fx.FXGraphics2D;
+import javafx.scene.layout.BorderPane;
+import javafx.stage.Window;
 
-import java.awt.event.MouseEvent;
-import java.awt.geom.Line2D;
+import javax.imageio.ImageIO;
+import java.awt.image.RenderedImage;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 
 public class Main extends Application {
 
@@ -60,18 +71,21 @@ public class Main extends Application {
     private static ToolButton toolbtnCircle = new ToolButton("Circle");
     private static ToolButton toolbtnSemicircle = new ToolButton("Semi-circle");
     private static ToolButton toolbtnArc = new ToolButton("Arc");
+    private static ToolButton rubberbtc=new ToolButton("Erase");
 
     Point2D prevPoint;
     Line hintLine;
     Circle hintCircle;
 
+    Stage window=new Stage();
+    GraphicsContext gc;
+
     @Override
     public void start(Stage primaryStage) throws Exception {
-        primaryStage.setTitle("NamelessDrawingApp");
+        window=primaryStage;
+        window.setTitle("NamelessDrawingApp");
 
-        appBody.prefHeightProperty().bind(
-                root.heightProperty().subtract(menuBar.heightProperty())
-        );
+        appBody.prefHeightProperty().bind(root.heightProperty().subtract(menuBar.heightProperty()));
 
         setupMenus();
         setupToolbar();
@@ -79,47 +93,62 @@ public class Main extends Application {
 
         canvas = new Canvas(400, 300);
 
-        GraphicsContext gc = canvas.getGraphicsContext2D();
+        gc = canvas.getGraphicsContext2D();
 
-        toolbtnLine.setSelected(true);
-        switch ((String)toolbarGroup.getSelectedToggle().getUserData()) {
-        case "Line":
-            canvas.setOnMousePressed(press -> {
-                double x = press.getX(), y = press.getY();
+
+        //set Request for closing window
+        window.setOnCloseRequest(e->{
+            e.consume();
+            confirmbox();
+        });
+
+
+
+
+
+
+        canvas.setOnMousePressed(e->{
+
+            if(toolbtnLine.isSelected()){
+                double x = e.getX(), y = e.getY();
                 prevPoint = new Point2D(x, y);
                 gc.fillOval(x - 2.5, y - 2.5, 5, 5);
-            });
-            canvas.setOnMouseDragged(drag -> {
-                // Draw the hint line
-                double x = drag.getX(), y = drag.getY();
+
+            }
+            if(toolbtnCircle.isSelected()){
+                double x = e.getX(), y = e.getY();
+                prevPoint = new Point2D(x, y);
+                gc.fillOval(x - 2.5, y - 2.5, 5, 5);
+            }
+
+            if(rubberbtc.isSelected()){
+                gc.setLineWidth(3.8);
+                double lineWidth = gc.getLineWidth();
+                gc.clearRect(e.getX() - lineWidth / 2, e.getY() - lineWidth / 2, lineWidth, lineWidth);
+
+            }
+
+
+
+
+
+        });
+        canvas.setOnMouseDragged(e->{
+
+            if (toolbtnLine.isSelected()){
+                double x = e.getX(), y = e.getY();
                 canvasHolder.getChildren().remove(hintLine);
-                DoubleProperty mouseX = new SimpleDoubleProperty(drag.getX());
-                DoubleProperty mouseY = new SimpleDoubleProperty(drag.getY());
+                DoubleProperty mouseX = new SimpleDoubleProperty(e.getX());
+                DoubleProperty mouseY = new SimpleDoubleProperty(e.getY());
                 hintLine = new Line(prevPoint.getX(), prevPoint.getY(), mouseX.get(), mouseY.get());
                 mouseX.addListener(ov -> hintLine.endXProperty().bind(mouseX));
                 mouseY.addListener(ov -> hintLine.endYProperty().bind(mouseY));
                 hintLine.setStroke(Color.BLUE);
                 canvasHolder.getChildren().add(hintLine);
-            });
-            canvas.setOnMouseReleased(release -> {
-                // Draw the line
-                double x = release.getX(), y = release.getY();
-                gc.strokeLine(prevPoint.getX(), prevPoint.getY(), x, y);
-                prevPoint = null;
-                canvasHolder.getChildren().remove(hintLine);
-                gc.fillOval(x - 2.5, y - 2.5, 5, 5);
-            });
-            break;
 
-        case "Circle":
-            canvas.setOnMousePressed(click -> {
-                double x = click.getX(), y = click.getY();
-                prevPoint = new Point2D(x, y);
-                gc.fillOval(x - 2.5, y - 2.5, 5, 5);
-            });
-            canvas.setOnMouseDragged(drag -> {
-                // Draw the hint circle
-                double x = drag.getX(), y = drag.getY();
+            }
+            if(toolbtnCircle.isSelected()){
+                double x = e.getX(), y = e.getY();
                 canvasHolder.getChildren().remove(hintCircle);
                 DoubleProperty radius = new SimpleDoubleProperty(prevPoint.distance(x, y));
                 hintCircle = new Circle(prevPoint.getX(), prevPoint.getY(), radius.get());
@@ -127,61 +156,69 @@ public class Main extends Application {
                 hintCircle.setStroke(Color.BLUE);
                 hintCircle.setFill(null);
                 canvasHolder.getChildren().add(hintCircle);
-            });
-            canvas.setOnMouseReleased(release -> {
-                // Draw the circle
-                double x = release.getX(), y = release.getY();
+            }
+            if(rubberbtc.isSelected()){
+                gc.setLineWidth(3.8);
+                double lineWidth = gc.getLineWidth();
+                gc.clearRect(e.getX() - lineWidth / 2, e.getY() - lineWidth / 2, lineWidth, lineWidth);
+
+            }
+
+
+
+        });
+
+
+        canvas.setOnMouseReleased(e->{
+
+            if (toolbtnLine.isSelected()){
+                double x = e.getX(), y = e.getY();
+                gc.strokeLine(prevPoint.getX(), prevPoint.getY(), x, y);
+                prevPoint = null;
+                canvasHolder.getChildren().remove(hintLine);
+                gc.fillOval(x - 2.5, y - 2.5, 5, 5);
+            }
+            if (toolbtnCircle.isSelected()){
+
+                double x = e.getX(), y = e.getY();
                 double radius = prevPoint.distance(x, y);
                 gc.strokeOval(prevPoint.getX() - radius, prevPoint.getY() - radius, 2 * radius, 2 * radius);
                 prevPoint = null;
                 canvasHolder.getChildren().remove(hintCircle);
                 gc.fillOval(x - 2.5, y - 2.5, 5, 5);
-            });
-            break;
-        }
 
-//        canvas.addEventHandler(MouseEvent.MOUSE_PRESSED,
-//                new EventHandler<MouseEvent>() {
-//                    @Override
-//                    public void handle(MouseEvent event) {
-//                        gc.beginPath();
-//                        gc.moveTo(event.getX(), event.getY());
-//                        gc.stroke();
-//                    }
-//                });
-//
-//        canvas.addEventHandler(MouseEvent.MOUSE_DRAGGED,
-//                new EventHandler<MouseEvent>() {
-//                    @Override
-//                    public void handle(MouseEvent event) {
-//                        gc.restore();
-//                        gc.lineTo(event.getX(), event.getY());
-////                        gc.rect(event.getX(), event.getY(), event.getX()+10, event.getY()+10);
-//                        gc.stroke();
-//                    }
-//                });
-//
-//        canvas.addEventHandler(MouseEvent.MOUSE_RELEASED,
-//                new EventHandler<MouseEvent>() {
-//                    @Override
-//                    public void handle(MouseEvent event) {
-//
-//                    }
-//                });
+
+            }
+            if(rubberbtc.isSelected()){
+                gc.setLineWidth(3.8);
+                double lineWidth = gc.getLineWidth();
+                gc.clearRect(e.getX() - lineWidth / 2, e.getY() - lineWidth / 2, lineWidth, lineWidth);
+
+            }
+
+
+
+
+        });
+
+
+
 
         canvasHolder.setStyle(
                 "-fx-background-color: #FFFFFF;"
         );
         canvasHolder.getChildren().add(canvas);
-        primaryStage.setScene(new Scene(root, 1000, 500));
-        primaryStage.show();
+
+        Scene scene=new Scene(root,1000,500);
+
+        // primaryStage.setScene(new Scene(root, 1000, 500));
+        window.setScene(scene);
+        window.show();
     }
 
     private void setupOptionsArea() {
         optionsArea.setTooltip(new Tooltip("Options"));
-        optionsArea.prefHeightProperty().bind(
-                appBody.heightProperty()
-        );
+        optionsArea.prefHeightProperty().bind(appBody.heightProperty());
 
 
     }
@@ -189,7 +226,7 @@ public class Main extends Application {
     private void setupToolbar() {
         toolbar.getColumnConstraints().add(new ColumnConstraints(50)); // for 1st column in the toolbar
         toolbar.getColumnConstraints().add(new ColumnConstraints(50)); // for 2nd column
-        toolbar.addColumn(0, toolbtnLine, toolbtnArrow, toolbtnPolygon);
+        toolbar.addColumn(0, toolbtnLine, toolbtnArrow, toolbtnPolygon,rubberbtc);
         toolbar.addColumn(1, toolbtnArc, toolbtnSemicircle, toolbtnCircle);
         Label toolsLabel = new Label("Tools");
         toolsLabel.setFont(new Font(18));
@@ -205,16 +242,80 @@ public class Main extends Application {
                 mitemOpen,
                 mitemSave,
                 mitemSaveAs,
-                mitemExit
-        );
+                mitemExit);
         mitemNew.setOnAction(e -> showNewFileDialog());
         mitemExit.setOnAction(e -> Platform.exit());
+        mitemSave.setOnAction((e)-> saveFile());
+        mitemOpen.setOnAction((e)-> openFile());
+        mitemSaveAs.setOnAction((e)->saveFile());
         menuBar.getMenus().addAll(
                 menuFile,
                 menuEdit,
                 menuHelp
         );
     }
+
+    /*------- Save & Open ------*/
+    public void saveFile() {
+        //Saving Process off File;\
+
+        FileChooser saveFile=new FileChooser();
+        saveFile.setTitle("Save");
+
+        File file=saveFile.showSaveDialog(window);
+
+        if(file!=null){
+
+            try {
+                WritableImage writableImage=new WritableImage(400,300);
+
+                canvas.snapshot(null,writableImage);
+
+                RenderedImage renderedImage= SwingFXUtils.fromFXImage(writableImage,null);
+
+                ImageIO.write(renderedImage,"png",file);
+
+
+            }catch (IOException ex){
+
+                System.out.println("Error!");
+
+
+
+            } }
+
+    }
+//FIle opening Process;
+
+    private void openFile() {
+
+        FileChooser openfile=new FileChooser();
+        openfile.setTitle("Open");
+
+        File file=openfile.showOpenDialog(window);
+
+        try {
+            InputStream inputStream=new FileInputStream(file);
+
+            Image image=new Image(inputStream);
+            gc.drawImage(image,0,0);
+
+        }catch (IOException ex){
+            System.out.println("Error!");
+        }
+
+
+
+
+
+
+    }
+
+
+
+
+
+
 
     private void showNewFileDialog() {
         Stage newFileDialog = new Stage();
@@ -289,7 +390,81 @@ public class Main extends Application {
         }
     }
 
+    //confirm when the Application is closing; and ask do he want to save file or not;
+    public  void confirmbox(){
+
+        Stage confirmWindow=new Stage();
+        confirmWindow.setTitle("NamelessDrawingApp");
+        confirmWindow.initModality(Modality.APPLICATION_MODAL);
+
+        Button ybutton=new Button("Save");
+        ybutton.setOnAction(e->{
+            fileSaveAndClose();
+            confirmWindow.close();
+
+        });
+
+        Button nbutton=new Button("Don't Save");
+        nbutton.setOnAction(e->{
+            confirmWindow.close();
+            window.close();
+        });
+
+        Label label=new Label("Do you want to save changes to File?");
+
+
+
+
+        HBox lay=new HBox(5);
+        lay.getChildren().addAll(ybutton, nbutton);
+
+        VBox vBox=new VBox(10);
+        vBox.getChildren().addAll(label,lay);
+
+        lay.setAlignment(Pos.CENTER);
+        Scene scene=new Scene(vBox,500,100);
+
+        confirmWindow.setScene(scene);
+        confirmWindow.showAndWait();
+
+
+    }
+
+    public void fileSaveAndClose() {
+
+        FileChooser saveFile=new FileChooser();
+        saveFile.setTitle("Save");
+
+        File file=saveFile.showSaveDialog(window);
+
+        if(file!=null){
+
+            try {
+                WritableImage writableImage=new WritableImage(400,300);
+
+                canvas.snapshot(null,writableImage);
+
+                RenderedImage renderedImage= SwingFXUtils.fromFXImage(writableImage,null);
+
+                ImageIO.write(renderedImage,"png",file);
+                window.close();
+
+
+            }catch (IOException ex){
+
+                System.out.println("Error!");
+
+
+
+            } }
+
+
+
+    }
+
+
     public static void main(String[] args) {
         launch(args);
     }
 }
+
